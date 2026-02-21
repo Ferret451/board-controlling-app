@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Фильтр для STM32 USB устройств -->
+    <!-- STM32 VID: 0x0483 -->
+    <usb-device vendor-id="1155" /> <!-- 0x0483 в десятичной системе -->
+
+    <!-- Общие FTDI устройства -->
+    <usb-device vendor-id="1027" /> <!-- 0x0403 -->
+
+    <!-- CH340/CH341 USB-Serial -->
+    <usb-device vendor-id="6790" /> <!-- 0x1A86 -->
+
+    <!-- CP210x USB-Serial -->
+    <usb-device vendor-id="4292" /> <!-- 0x10C4 -->
+</resources>
+
