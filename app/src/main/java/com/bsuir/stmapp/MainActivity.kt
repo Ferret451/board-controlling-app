@@ -5,13 +5,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.bsuir.stmapp.components.NumberDropdownMenu
 import com.bsuir.stmapp.ui.theme.STMAppTheme
 import com.bsuir.stmapp.viewmodel.MainViewModel
 
@@ -66,9 +68,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .verticalScroll(rememberScrollState())
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Статус подключения
             Card(
@@ -92,6 +95,43 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         text = uiState.statusMessage,
                         style = MaterialTheme.typography.bodyLarge
                     )
+
+//                    Spacer(modifier = Modifier.height(4.dp))
+//
+//                    // Кнопка обновления статуса
+//                    OutlinedButton(
+//                        onClick = { viewModel.getStatus() },
+//                        modifier = Modifier
+//                            .fillMaxWidth()
+//                            .height(48.dp),
+//                        enabled = uiState.isConnected && !uiState.isLoading
+//                    ) {
+//                        if (uiState.isLoading) {
+//                            CircularProgressIndicator(
+//                                modifier = Modifier.size(20.dp),
+//                                color = MaterialTheme.colorScheme.primary
+//                            )
+//                        } else {
+//                            Text("Обновить статус")
+//                        }
+//                    }
+
+                    // Отображение JSON ответа
+                    if (uiState.rawJsonResponse.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "JSON ответ:",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = uiState.rawJsonResponse,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
                 }
             }
 
@@ -129,35 +169,86 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             }
 
             HorizontalDivider(
-                modifier = Modifier.padding(vertical = 16.dp),
+                modifier = Modifier.padding(vertical = 8.dp),
                 thickness = DividerDefaults.Thickness,
                 color = DividerDefaults.color
             )
 
-            // Индикатор состояния светодиода
+            // Управление миганием через Dropdown
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (uiState.isLedOn)
-                        MaterialTheme.colorScheme.primaryContainer
-                    else
-                        MaterialTheme.colorScheme.surfaceVariant
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp)
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Светодиод:",
+                        text = "Управление миганием:",
                         style = MaterialTheme.typography.titleMedium
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = if (uiState.isLedOn) "Включен" else "Выключен",
-                        style = MaterialTheme.typography.bodyLarge
+
+                    // Dropdown меню для выбора частоты
+                    NumberDropdownMenu(
+                        selectedValue = uiState.selectedFrequency,
+                        onValueChange = { viewModel.updateSelectedFrequency(it) },
+                        options = uiState.availableFrequencies,
+                        label = "Выберите частоту (Гц)",
+                        enabled = true,
+                        modifier = Modifier.fillMaxWidth()
                     )
+
+                    // Кнопка запуска мигания с выбранной частотой
+                    Button(
+                        onClick = { viewModel.sendSelectedFrequency() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        enabled = uiState.isConnected && !uiState.isLoading,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary
+                        )
+                    ) {
+                        if (uiState.isButtonClicked) {
+                            Text("✓ Мигание запущено!")
+                        } else if (uiState.isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = MaterialTheme.colorScheme.onTertiary
+                            )
+                        } else {
+                            Text(
+                                text = if (uiState.isConnected)
+                                    "Запустить мигание ${uiState.selectedFrequency} Гц"
+                                else
+                                    "Сначала подключитесь к устройству"
+                            )
+                        }
+                    }
+
+                    // Кнопка остановки мигания
+                    Button(
+                        onClick = { viewModel.stopBlinking() },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        enabled = uiState.isConnected && !uiState.isLoading && uiState.isBlinking,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Text("Остановить мигание")
+                    }
                 }
             }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                thickness = DividerDefaults.Thickness,
+                color = DividerDefaults.color
+            )
 
             // Кнопка управления светодиодом
             Button(
@@ -165,7 +256,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = uiState.isConnected && !uiState.isLoading,
+                enabled = uiState.isConnected && !uiState.isLoading && !uiState.isBlinking,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (uiState.isLedOn)
                         MaterialTheme.colorScheme.error
@@ -175,13 +266,14 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
             ) {
                 Text(
                     text = if (uiState.isLedOn)
-                        "Выклюсить светодиод"
+                        "Выключить светодиод"
                     else
-                        "Вклюсить светодиод",
+                        "Включить светодиод",
                     style = MaterialTheme.typography.titleMedium
                 )
             }
         }
     }
 }
+
 
