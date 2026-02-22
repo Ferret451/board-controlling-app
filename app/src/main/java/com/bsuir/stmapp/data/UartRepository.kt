@@ -11,8 +11,11 @@ import com.hoho.android.usbserial.driver.UsbSerialProber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.SerializationException
 
+@Serializable
 data class StmResponse(
     val status: String,
     val led: String,
@@ -22,6 +25,12 @@ data class StmResponse(
 class UartRepository(private val context: Context) {
     private var serialPort: UsbSerialPort? = null
     private var connection: UsbSerialPort? = null
+
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        coerceInputValues = true
+    }
 
     companion object {
         private const val TAG = "UartRepository"
@@ -80,9 +89,11 @@ class UartRepository(private val context: Context) {
 
     private suspend fun readResponse(timeoutMs: Long = 2000): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val buffer = ByteArray(1024)
+            val buffer = ByteArray(256)
             val startTime = System.currentTimeMillis()
-            val responseBuilder = StringBuilder()
+            val jsonBuilder = StringBuilder()
+            var depth = 0        // глубина вложенности { }
+            var jsonStarted = false
 
             Log.d(TAG, "Ожидание ответа от STM32...")
 
@@ -94,29 +105,41 @@ class UartRepository(private val context: Context) {
                 try {
                     val bytesRead = port.read(buffer, 100)
                     if (bytesRead > 0) {
-                        val chunk = String(buffer, 0, bytesRead)
-                        responseBuilder.append(chunk)
+                        val chunk = String(buffer, 0, bytesRead, Charsets.US_ASCII)
                         Log.d(TAG, "Получено байт: $bytesRead, данные: $chunk")
 
-                        // Проверяем, получили ли полный JSON (содержит } и \n)
-                        val response = responseBuilder.toString()
-                        if (response.contains("}")) {
-                            Log.i(TAG, "Полный ответ получен: $response")
-                            return@withContext Result.success(response.trim())
+                        for (ch in chunk) {
+                            when {
+                                ch == '{' -> {
+                                    jsonStarted = true
+                                    depth++
+                                    jsonBuilder.append(ch)
+                                }
+                                jsonStarted && ch == '}' -> {
+                                    jsonBuilder.append(ch)
+                                    depth--
+                                    if (depth == 0) {
+                                        // Получили полный JSON объект
+                                        val result = jsonBuilder.toString()
+                                        Log.i(TAG, "Полный JSON получен: $result")
+                                        return@withContext Result.success(result)
+                                    }
+                                }
+                                jsonStarted -> jsonBuilder.append(ch)
+                            }
                         }
                     }
                 } catch (e: Exception) {
-                    // Игнорируем таймауты чтения, продолжаем попытки
-                    delay(50)
+                    delay(20)
                 }
 
-                delay(50)
+                delay(20)
             }
 
-            if (responseBuilder.isNotEmpty()) {
-                val partialResponse = responseBuilder.toString().trim()
-                Log.w(TAG, "Таймаут, получен частичный ответ: $partialResponse")
-                return@withContext Result.success(partialResponse)
+            if (jsonBuilder.isNotEmpty()) {
+                val partial = jsonBuilder.toString()
+                Log.w(TAG, "Таймаут, частичный JSON: $partial")
+                return@withContext Result.success(partial)
             }
 
             Log.w(TAG, "Таймаут ожидания ответа")
@@ -130,29 +153,14 @@ class UartRepository(private val context: Context) {
     private fun parseStmResponse(jsonString: String): StmResponse? {
         return try {
             Log.d(TAG, "Парсинг JSON: $jsonString")
-
-            // Ищем JSON объект в строке
-            val startIndex = jsonString.indexOf('{')
-            val endIndex = jsonString.lastIndexOf('}')
-
-            if (startIndex == -1 || endIndex == -1) {
-                Log.w(TAG, "JSON объект не найден в ответе")
-                return null
-            }
-
-            val jsonPart = jsonString.substring(startIndex, endIndex + 1)
-            val json = JSONObject(jsonPart)
-
-            val response = StmResponse(
-                status = json.optString("status", "unknown"),
-                led = json.optString("led", "unknown"),
-                frequency = json.optString("frequency", "0")
-            )
-
+            val response = json.decodeFromString<StmResponse>(jsonString.trim())
             Log.i(TAG, "JSON распарсен: status=${response.status}, led=${response.led}, freq=${response.frequency}")
             response
+        } catch (e: SerializationException) {
+            Log.e(TAG, "Ошибка сериализации JSON: ${e.message}", e)
+            null
         } catch (e: Exception) {
-            Log.e(TAG, "Ошибка парсинга JSON: ${e.message}", e)
+            Log.e(TAG, "Ошибка парсинга: ${e.message}", e)
             null
         }
     }

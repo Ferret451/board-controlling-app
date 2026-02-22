@@ -133,7 +133,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val statusMsg = when (response.led) {
                         "on" -> "LED включен"
                         "off" -> "LED выключен"
-                        else -> "Status: ${response.status}, LED: ${response.led}"
+                        else -> "Unknown response"
                     }
 
                     _uiState.value = _uiState.value.copy(
