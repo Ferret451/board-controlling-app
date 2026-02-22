@@ -1,9 +1,13 @@
 package com.bsuir.stmapp.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun NumberDropdownMenu(
@@ -12,21 +16,36 @@ fun NumberDropdownMenu(
     onValueChange: (Int) -> Unit,
     options: List<Int> = listOf(1, 3, 5),
     label: String = "Выберите значение",
-    enabled: Boolean = true  // Добавлено поле enabled со значением по умолчанию
+    enabled: Boolean = true
 ) {
     var expanded by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
         OutlinedButton(
-            onClick = {
-                if (enabled) {  // Проверяем enabled перед открытием
-                    expanded = true
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = enabled  // Передаем enabled в Button
+            onClick = { if (enabled) expanded = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            enabled = enabled,
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.primary
+            )
         ) {
-            Text(text = "$label: $selectedValue")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$label: $selectedValue Гц",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Icon(
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
         DropdownMenu(
@@ -35,14 +54,19 @@ fun NumberDropdownMenu(
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option.toString()) },
+                    text = {
+                        Text(
+                            text = "$option Гц",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
                     onClick = {
-                        if (enabled) {  // Дополнительная проверка enabled
+                        if (enabled) {
                             onValueChange(option)
                             expanded = false
                         }
                     },
-                    enabled = enabled  // Передаем enabled в DropdownMenuItem
+                    enabled = enabled
                 )
             }
         }
